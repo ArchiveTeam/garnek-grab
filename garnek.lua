@@ -83,7 +83,8 @@ find_item = function(url)
   for pattern, name in pairs({
     ["^https?://www%.garnek%.pl/([^/%?&]+)$"]="user",
     ["^https?://www%.garnek%.pl/([^/]+/[0-9]+)$"]="photo",
-    ["^https?://www%.garnek%.pl/forum/([^/%?&]+)$"]="forum"
+    ["^https?://www%.garnek%.pl/forum/([^/%?&]+)$"]="forum",
+    ["^https?://img2%.garnek%.pl/a%.garnek%.pl/[0-9]+/[0-9]+/([0-9]+)_800%.0%.jpg$"]="image"
   }) do
     value = string.match(url, pattern)
     type_ = name
@@ -104,13 +105,16 @@ set_item = function(url)
   if found then
     item_type = found["type"]
     if item_type == "photo" then
-      item_value = string.match(found["value"], "[^/]+/([0-9]+)$")
+      item_value = string.gsub(found["value"], "/", ":")
     else
       item_value = found["value"]
     end
     item_name_new = item_type .. ":" .. item_value
     if item_name_new ~= item_name then
       ids = {}
+      if item_type == "photo" then
+        ids[string.match(found["value"], "[^/]+/([0-9]+)$")] = true
+      end
       ids[string.lower(item_value)] = true
       abortgrab = false
       tries = 0
@@ -138,10 +142,16 @@ allowed = function(url, parenturl)
   if ids[url] then
     return true
   end
+  
+  if string.match(url, "/0/xcount/%?")
+    or string.match(url, "/0/xreport/%?") then
+    return false
+  end
 
   local skip = false
   for pattern, type_ in pairs({
     ["^https?://www%.garnek%.pl/([^/]+/[0-9]+)"]="photo",
+    ["^https?://www%.garnek%.pl/([^/%?&]+)"]="user"
   }) do
     match = string.match(url, pattern)
     if match then
@@ -151,7 +161,9 @@ allowed = function(url, parenturl)
       local new_item = type_ .. ":" .. match
       if new_item ~= item_name then
         discover_item(discovered_items, new_item)
-        skip = true
+        if type_ ~= "user" then
+          skip = true
+        end
       end
     end
   end
@@ -161,6 +173,12 @@ allowed = function(url, parenturl)
 
   if not string.match(url, "^https?://[^/]*garnek%.pl/") then
     discover_item(discovered_outlinks, string.match(percent_encode_url(url), "^([^%s]+)"))
+    return false
+  end
+  
+  if item_type == "photo"
+    and string.match(url, "^https?://img[0-9]*%.garnek%.pl/.")
+    and not string.match(url, "_800%.0?%.?[^/]+/.") then
     return false
   end
 
@@ -375,12 +393,42 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
     return result
   end
+  
+  if string.match(url, "^https://img[0-9]*%.garnek%.pl/.")
+    and (
+      item_type == "image"
+      or string.match(url, "_800%.0?%.?[^/]+/")
+    ) then
+    if status_code == 200 then
+      for i=1,4 do
+        check("https://img" .. tostring(i) .. ".garnek.pl" .. string.match(url, "^https?://[^/]+(/.+)$"))
+      end
+      if string.match(url, "%.0%.") then
+        local a, b = string.match(url, "^(https?://img[0-9]*%.garnek%.pl/[^/]+/[0-9]+/[0-9]+/[0-9]+_[0-9]+)%.0(%.[0-9a-z]+/?.*)$")
+        check(a .. b)
+      end
+    end
+    if item_type == "image" then
+      for _, server in pairs({"a", "av", "amin"}) do
+        check(urlparse.absolute(url, "/" .. server .. ".garnek.pl" .. string.match(url, "^https?://[^/]+/[^%./]+%.garnek%.pl(/.+)$")))
+      end
+      local a, b = string.match(url, "^(https?://img[0-9]*%.garnek%.pl/[^/]+/[0-9]+/[0-9]+/[0-9]+_)[0-9]+(%.0?%.?[0-9a-z]+)$")
+      assert(a)
+      assert(b)
+      for _, size in pairs({"800", "200", "96", "70"}) do
+        check(a .. size .. b)
+      end
+    end
+  end
 
   if allowed(url)
     and status_code < 300
     and not string.match(url, "^https?://img[0-9]*%.garnek%.pl/.") then
     html = read_file(file)
-    
+    if item_type == "user" then
+      check("https://www.garnek.pl/0/feeds/?id=" .. item_value)
+      check("https://www.garnek.pl/0/feeds/faves/?id=" .. item_value)
+    end
     for newurl in string.gmatch(string.gsub(html, "&[qQ][uU][oO][tT];", '"'), '([^"]+)') do
       checknewurl(newurl)
     end
@@ -420,22 +468,36 @@ wget.callbacks.write_to_warc = function(url, http_stat)
   end
   is_initial_url = false
   if http_stat["statcode"] ~= 200
-    and http_stat["statcode"] ~= 404  then
+    and http_stat["statcode"] ~= 404
+    and not (
+      http_stat["statcode"] == 403
+      and string.match(url["url"], "^https?://img[0-9]*%.garnek%.pl/[^/]+/[0-9]+/[0-9]+/[0-9]+_[0-9]+%.0?%.?[0-9a-z]+$")
+      and not string.match(url["url"], "_800%.0%.[0-9a-z]+$")
+    )
+    and not (
+      (
+        http_stat["statcode"] == 301
+        or http_stat["statcode"] == 302
+      )
+      and allowed(urlparse.absolute(url["url"], http_stat["newloc"]))
+    ) then
     retry_url = true
     return false
   end
-  if http_stat["len"] == 0 then
-    retry_url = true
-    return false
-  end
-  if true then -- temp
-    local html = read_file(http_stat["local_file"])
-    if string.len(string.match(html, "%s*(.)")) == 0 then
+  if http_stat["statcode"] == 200 then
+    if http_stat["len"] == 0 then
       retry_url = true
       return false
     end
-    if string.match(html, "^%s*{") then
-      local json = cjson.decode(html)
+    if true then -- temp
+      local html = read_file(http_stat["local_file"])
+      if string.len(string.match(html, "%s*(.)")) == 0 then
+        retry_url = true
+        return false
+      end
+      if string.match(html, "^%s*{") then
+        local json = cjson.decode(html)
+      end
     end
   end
   if abortgrab then

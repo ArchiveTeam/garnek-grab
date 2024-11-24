@@ -77,11 +77,11 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20241123.02'
+VERSION = '20241124.01'
 USER_AGENT = 'Mozilla/5.0 (X11; Linux i686; rv:124.0) Gecko/20100101 Firefox/124.0'
 TRACKER_ID = 'garnek'
 TRACKER_HOST = 'legacy-api.arpa.li'
-MULTI_ITEM_SIZE = 1
+MULTI_ITEM_SIZE = 5
 
 
 ###########################################################################
@@ -311,10 +311,17 @@ class WgetArgs(object):
             if item_type == 'user':
                 wget_args.extend(['--warc-header', 'garnek-user: '+item_value])
                 wget_args.append('https://www.garnek.pl/'+item_value)
-            #elif item_type == 'photo':
-            #    user, image_id = item_value.split(':')
-            #    wget_args.extend(['--warc-header', 'garnek-photo: '+image_id])
-            #    wget_args.append('https://www.garnek.pl/{}/{}'.format(user, image_id))
+            #elif item_type == 'image':
+            #    wget_args.extend(['--warc-header', 'garnek-image-id: '+item_value])
+            #    wget_args.append('https://img2.garnek.pl/a.garnek.pl/{}/{}/{}_800.0.jpg'.format(
+            #        item_value[-9:-6].zfill(3),
+            #        item_value[-6:-3].zfill(3),
+            #        item_value
+            #    ))
+            elif item_type == 'photo':
+                user, image_id = item_value.split(':')
+                wget_args.extend(['--warc-header', 'garnek-photo: '+image_id])
+                wget_args.append('https://www.garnek.pl/{}/{}'.format(user, image_id))
             #elif item_type == 'forum':
             #    wget_args.extend(['--warc-header', 'garnek-forum: '+item_value])
             #    wget_args.append('https://www.garnek.pl/forum/'+item_value)
