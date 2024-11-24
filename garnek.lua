@@ -399,7 +399,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       item_type == "image"
       or string.match(url, "_800%.0?%.?[^/]+/")
     ) then
-    if status_code == 200 then
+    if status_code == 200
+      and not item_type == "photo" then
       for i=1,4 do
         check("https://img" .. tostring(i) .. ".garnek.pl" .. string.match(url, "^https?://[^/]+(/.+)$"))
       end
