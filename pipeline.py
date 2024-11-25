@@ -77,7 +77,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20241124.02'
+VERSION = '20241125.01'
 USER_AGENT = 'Mozilla/5.0 (X11; Linux i686; rv:124.0) Gecko/20100101 Firefox/124.0'
 TRACKER_ID = 'garnek'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -322,9 +322,9 @@ class WgetArgs(object):
                 user, image_id = item_value.split(':')
                 wget_args.extend(['--warc-header', 'garnek-photo: '+image_id])
                 wget_args.append('https://www.garnek.pl/{}/{}'.format(user, image_id))
-            #elif item_type == 'forum':
-            #    wget_args.extend(['--warc-header', 'garnek-forum: '+item_value])
-            #    wget_args.append('https://www.garnek.pl/forum/'+item_value)
+            elif item_type == 'forum':
+                wget_args.extend(['--warc-header', 'garnek-forum: '+item_value])
+                wget_args.append('https://www.garnek.pl/forum/'+item_value)
             else:
                 raise Exception('Unknown item')
 

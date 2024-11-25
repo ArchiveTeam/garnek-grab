@@ -144,7 +144,8 @@ allowed = function(url, parenturl)
   end
   
   if string.match(url, "/0/xcount/%?")
-    or string.match(url, "/0/xreport/%?") then
+    or string.match(url, "/0/xreport/%?")
+    or string.match(url, "/dyskusje/nowy%-temat$") then
     return false
   end
 
